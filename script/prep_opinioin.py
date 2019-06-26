@@ -19,12 +19,7 @@ def replace(sent):
 
 
 def read_data(path, opi_path):
-    """
-    construct dataset with aspect tags and opinion tags
-    :param path: path of data file
-    :param opi_path: path of data file
-    :return:
-    """
+
     # load opinion annotations
 
     with open('../data/prep_data/word_idx.json') as f:
@@ -112,60 +107,7 @@ def read_data(path, opi_path):
                 tags.append(0)
                 flag = 0
 
-        '''
-        for item in tag_sequence:
-            eles = item.split('=')
-            #print(eles)
-            if len(eles) == 2:
-                word, tag = eles
-            else:
-                n_ele = len(eles)
-                tag = eles[-1]
-
-                word = ''
-                for k in range(n_ele):
-                    ele = eles[k]
-                    if ele == '' and k == 0:
-                        continue
-                    elif ele == '':
-                        word += '='
-                    else:
-                        word += ele
-            #words.append(word.lower())
-
-            if word not in string.punctuation:
-                words.append(word.lower())
-            else:
-                words.append('PUNCT')
-
-
-            if word in word_idx:
-                words.append(word_idx[word])
-            else:
-                words.append(0)
-            #tags.append(tag)
-
-            if tag == 'T':
-                if flag==0:
-                    tags.append(1)
-                else:
-                    tags.append(2)
-                flag=1
-            else:
-                tags.append(0)
-                flag=0
-            # opinion tagging schema: OT
-
-            if word in opi_record:
-                if opi_flag == 0:
-                    opi_tags.append(1)
-                else:
-                    opi_tags.append(2)
-                opi_flag = 1
-            else:
-                opi_tags.append(0)
-                opi_flag = 0
-            '''
+       
         while len(words) < 83:
             words.append(0)
         while len(tags) < 83:
@@ -179,21 +121,16 @@ def read_data(path, opi_path):
 
         dataset.append(record)
         idx += 1
-    # print(type(data['opinion_tags']))
-    # z=dataset[1]
-    # print(z['sent'])
+   
     sentences, aspect_tags, opinion_tags = [], [], []
     for data in dataset:
         sentences.append(data['sent'])
         aspect_tags.append(data['aspect_tags'])
         opinion_tags.append(data['opinion_tags'])
-    # print(type(opinion_tags[1][2]))
-    # print(type(opinion_tags[1][2]))
 
     for i in range(0, 5):
         print(i)
         print(sentences[i])
-        #print(aspect_tags[i])
         print(opinion_tags[i])
 
 
@@ -207,7 +144,7 @@ def read_data(path, opi_path):
 
 
 if __name__ == "__main__":
-    # dataset for the task of aspect term extraction
+
     train_path = '../data/prep_data/restaurant_test.txt'
 
     train_opi_path = '../data/prep_data/restaurant_test_opi.txt'

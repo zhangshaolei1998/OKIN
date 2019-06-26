@@ -19,12 +19,6 @@ def replace(sent):
 
 
 def read_data(path, opi_path):
-    """
-    construct dataset with aspect tags and opinion tags
-    :param path: path of data file
-    :param opi_path: path of data file
-    :return:
-    """
     # load opinion annotations
 
 
@@ -116,60 +110,6 @@ def read_data(path, opi_path):
                 flag = 0
 
 
-        '''
-        for item in tag_sequence:
-            eles = item.split('=')
-            #print(eles)
-            if len(eles) == 2:
-                word, tag = eles
-            else:
-                n_ele = len(eles)
-                tag = eles[-1]
-
-                word = ''
-                for k in range(n_ele):
-                    ele = eles[k]
-                    if ele == '' and k == 0:
-                        continue
-                    elif ele == '':
-                        word += '='
-                    else:
-                        word += ele
-            #words.append(word.lower())
-        
-            if word not in string.punctuation:
-                words.append(word.lower())
-            else:
-                words.append('PUNCT')
-            
-
-            if word in word_idx:
-                words.append(word_idx[word])
-            else:
-                words.append(0)
-            #tags.append(tag)
-        
-            if tag == 'T':
-                if flag==0:
-                    tags.append(1)
-                else:
-                    tags.append(2)
-                flag=1
-            else:
-                tags.append(0)
-                flag=0
-            # opinion tagging schema: OT
-          
-            if word in opi_record:
-                if opi_flag == 0:
-                    opi_tags.append(1)
-                else:
-                    opi_tags.append(2)
-                opi_flag = 1
-            else:
-                opi_tags.append(0)
-                opi_flag = 0
-            '''
         while len(words)<83:
             words.append(0)
         while len(tags)<83:

@@ -68,7 +68,23 @@ class Model(torch.nn.Module):
             from allennlp.modules import ConditionalRandomField
             self.crf = ConditionalRandomField(num_classes)
 
-    def forward(self, x, x_len, x_len_opi, x_mask, x_tag=None, x_tag_opi=None, testing=False):
+    def forward(self, x, x_len,x_len_opi, x_mask, x_tag=None, x_tag_opi=None, testing=False):
+
+        a=x.unsqueeze(2).float()
+        atten_a=torch.bmm(a,a.transpose(1,2))
+        atten_a=np.float64(atten_a.cpu() > 0)
+        atten_a=torch.Tensor(atten_a).cpu().type(torch.FloatTensor)
+        atten_a=atten_a.cpu().numpy()
+
+        #print(atten_a.shape[0])
+
+        for i in (0,atten_a.shape[0]-1):
+            atten_a[i]=atten_a[i]-np.diag(np.diag(atten_a[i]))
+        atten_a=np.where(atten_a > 0, atten_a, -999999999)
+        atten_a=torch.Tensor(atten_a).cpu().type(torch.FloatTensor)
+
+
+
         x_emb = torch.cat((self.gen_embedding(x), self.domain_embedding(x)), dim=2)
         op_conv = x_emb
         x_emb = self.dropout(x_emb).transpose(1, 2)
@@ -97,7 +113,7 @@ class Model(torch.nn.Module):
         op_conv = op_conv.transpose(1, 2)  # [128, 83, 256]
 
         x_logit_opi = self._linear_ae(op_conv)
-        ''''
+        
         atten = F.relu(self.atten(op_conv))  # [128, 83, 256]
         atten = torch.bmm(as_conv, atten.transpose(1, 2))# [128, 83, 256]
 
@@ -106,8 +122,7 @@ class Model(torch.nn.Module):
         atten_weight = F.softmax(F.relu(atten), dim=1).cuda()
         atten_conv = torch.bmm(atten_weight, op_conv).transpose(1, 2)  # [128, 256, 83]
         ans_conv = torch.cat((as_conv, atten_conv.transpose(1, 2)), dim=2)  # [128, 83, 512]
-        '''
-        ans_conv = torch.cat((as_conv, op_conv), dim=2)
+        
         x_logit = self.linear_ae(ans_conv)
 
         if testing:
@@ -138,19 +153,11 @@ def test(model, test_X, data_dir, domain,  batch_size=128, crf=False):
         batch_test_X_len = batch_test_X_len[batch_idx]
         batch_test_X_mask = (test_X[offset:offset + batch_size] != 0)[batch_idx].astype(np.uint8)
         batch_test_X = test_X[offset:offset + batch_size][batch_idx]
-        # print("*****test:%d", offset)
-        # print(test_X[offset])
-        # print("*****:%d", offset)
-        # print(batch_test_X[offset])
         batch_test_X_mask = torch.autograd.Variable(torch.from_numpy(batch_test_X_mask).long().cuda())
         batch_test_X = torch.autograd.Variable(torch.from_numpy(batch_test_X).long().cuda())
-        # print("*****:%d",offset)
-        # print(batch_test_X[offset])
-        #batch_pred_y, batch_atten_weight = model(batch_test_X, batch_test_X_len,batch_test_X_len, batch_test_X_mask, testing=True)
-        batch_pred_y= model(batch_test_X, batch_test_X_len, batch_test_X_len, batch_test_X_mask,
-                                                 testing=True)
-        # print("batch_pred_y维度:", type(batch_pred_y))
-        # print("batch_atten_weight维度:", batch_atten_weight[1].shape)
+        
+        batch_pred_y= model(batch_test_X, batch_test_X_len, batch_test_X_len, batch_test_X_mask,testing=True)
+        
         r_idx = batch_idx.argsort()
         if crf:
             batch_pred_y = [batch_pred_y[idx] for idx in r_idx]
@@ -229,7 +236,7 @@ def evaluate(runs, data_dir, model_dir, domain):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--runs', type=int, default=2)
+    parser.add_argument('--runs', type=int, default=1)
     parser.add_argument('--data_dir', type=str, default="data/prep_data/")
     parser.add_argument('--model_dir', type=str, default="model/")
     parser.add_argument('--domain', type=str, default="laptop")

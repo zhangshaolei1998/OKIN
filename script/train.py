@@ -20,11 +20,7 @@ torch.cuda.manual_seed(1337)
 def batch_generator(X, y, y_opi, batch_size=128, return_idx=False, crf=False):
     for offset in range(0, X.shape[0], batch_size):
         batch_X_len=np.sum(X[offset:offset+batch_size]!=0, axis=1)
-        #print(batch_X_len)
-        #print(batch_X_len.shape)
         batch_X_len_opi = np.sum(X[offset:offset + batch_size] !=0, axis=1)
-        #print(batch_X_len_opi)
-        #print(batch_X_len_opi.shape)
         batch_idx=batch_X_len.argsort()[::-1]
         batch_X_len=batch_X_len[batch_idx]
         batch_X_len_opi = batch_X_len_opi[batch_idx]
@@ -89,25 +85,21 @@ class Model(torch.nn.Module):
             self.crf = ConditionalRandomField(num_classes)
 
     def forward(self, x, x_len,x_len_opi, x_mask, x_tag=None, x_tag_opi=None, testing=False):
-        #print(x.shape)
 
         a=x.unsqueeze(2).float()
-        #print(a.shape)
         atten_a=torch.bmm(a,a.transpose(1,2))
-        #print(atten_a.shape)
         atten_a=np.float64(atten_a.cpu() > 0)
         atten_a=torch.Tensor(atten_a).cpu().type(torch.FloatTensor)
-        #print(atten_a)
-
         atten_a=atten_a.cpu().numpy()
 
         #print(atten_a.shape[0])
 
         for i in (0,atten_a.shape[0]-1):
             atten_a[i]=atten_a[i]-np.diag(np.diag(atten_a[i]))
-
         atten_a=np.where(atten_a > 0, atten_a, -999999999)
         atten_a=torch.Tensor(atten_a).cpu().type(torch.FloatTensor)
+
+
 
         x_emb = torch.cat((self.gen_embedding(x), self.domain_embedding(x)), dim=2)
         op_conv = x_emb
@@ -137,7 +129,7 @@ class Model(torch.nn.Module):
         op_conv = op_conv.transpose(1, 2)  # [128, 83, 256]
 
         x_logit_opi = self._linear_ae(op_conv)
-        ''''
+        
         atten = F.relu(self.atten(op_conv))  # [128, 83, 256]
         atten = torch.bmm(as_conv, atten.transpose(1, 2))# [128, 83, 256]
 
@@ -146,8 +138,7 @@ class Model(torch.nn.Module):
         atten_weight = F.softmax(F.relu(atten), dim=1).cuda()
         atten_conv = torch.bmm(atten_weight, op_conv).transpose(1, 2)  # [128, 256, 83]
         ans_conv = torch.cat((as_conv, atten_conv.transpose(1, 2)), dim=2)  # [128, 83, 512]
-        '''
-        ans_conv = torch.cat((as_conv, op_conv), dim=2)
+        
         x_logit = self.linear_ae(ans_conv)
 
         if testing:
@@ -163,11 +154,9 @@ class Model(torch.nn.Module):
                 x_logit = torch.nn.utils.rnn.pack_padded_sequence(x_logit, x_len, batch_first=True)
                 score1 = torch.nn.functional.nll_loss(torch.nn.functional.log_softmax(x_logit.data), x_tag.data)
 
-                #print(type(x_logit_opi))
                 x_logit_opi = torch.nn.utils.rnn.pack_padded_sequence(x_logit_opi, x_len_opi, batch_first=True)
-                #print(type(x_logit_opi))
                 score2 = torch.nn.functional.nll_loss(torch.nn.functional.log_softmax(x_logit_opi.data), x_tag_opi.data)
-                # print('aspect_loss:',score1,'opinion_loss:',score2)
+            
         return score1, score2
 
 
@@ -194,7 +183,7 @@ def train(train_X, train_y, train_y_opi, valid_X, valid_y, valid_y_opi, model, m
         print('epoch', epoch, ':', end='')
         print('epoch', epoch, ':', end='', file=of)
         for batch in batch_generator(train_X, train_y, train_y_opi, batch_size, crf=crf):
-            # print(batch,' ', end='')
+            
             batch_train_X, batch_train_y, batch_train_y_opi, batch_train_X_len,batch_train_X_len_opi, batch_train_X_mask = batch
             loss1, loss2 = model(batch_train_X, batch_train_X_len,batch_train_X_len_opi, batch_train_X_mask, batch_train_y, batch_train_y_opi)
             loss = loss1 + a * loss2
@@ -264,39 +253,13 @@ def run(domain, data_dir, model_dir, valid_split, runs, epochs, lr, dropout, a,w
 
     ae_data=np.load(data_dir+domain+"_data.npz")
 
-    #print("gen_emb:", gen_emb.shape)
-    #print("domain_emb:", domain_emb.shape)
-
-
-
     valid_X=ae_data['sentences'][-valid_split:]
     valid_y=ae_data['aspect_tags'][-valid_split:]
     valid_y_opi = ae_data['opinion_tags'][-valid_split:]
     train_X=ae_data['sentences'][:-valid_split]
     train_y=ae_data['aspect_tags'][:-valid_split]
     train_y_opi = ae_data['opinion_tags'][:-valid_split]
-    '''
-    ae_data = np.load(data_dir + domain + ".npz")
-
-    valid_X = ae_data['train_X'][-valid_split:]
-    valid_y = ae_data['train_y'][-valid_split:]
-    valid_y_opi = ae_data['train_y'][-valid_split:]
-    train_X = ae_data['train_X'][:-valid_split]
-    train_y = ae_data['train_y'][:-valid_split]
-    train_y_opi = ae_data['train_y'][:-valid_split]
     
-    print("valid_X:", valid_X.shape)
-    print("valid_y:", valid_y.shape)
-    print("train_X:", train_X.shape)
-    print("train_y:", train_y.shape)
-
-    print("x:")
-    for i in range(0,5):
-        print(train_X[i])
-    print("y:")
-    for i in range(0, 5):
-        print(train_y[i])
-    '''
     for r in range(runs):
         print(r)
         of.write(str(r))
@@ -316,7 +279,7 @@ if __name__ == "__main__":
     parser.add_argument('--model_dir', type=str, default="model/")
     parser.add_argument('--batch_size', type=int, default=128)
     parser.add_argument('--epochs', type=int, default=250)
-    parser.add_argument('--runs', type=int, default=2)
+    parser.add_argument('--runs', type=int, default=1)
     parser.add_argument('--domain', type=str, default="laptop")
     parser.add_argument('--data_dir', type=str, default="data/prep_data/")
     parser.add_argument('--valid', type=int, default=150) #number of validation data.
@@ -324,8 +287,7 @@ if __name__ == "__main__":
     parser.add_argument('--dropout', type=float, default=0.6)
     parser.add_argument('--a', type=float, default=0.5)
     parser.add_argument('--updateway', type=int, default=1)#1:loss，loss1同时小。2：loss小或loss1小。3：loss小。:4：loss1小
-    #parser.add_argument('--asp_layer', type=int, default=4)
-    #parser.add_argument('--opi_layer', type=int, default=5)
+    
 
 
     args = parser.parse_args()

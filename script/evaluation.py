@@ -66,27 +66,21 @@ class Model(torch.nn.Module):
             from allennlp.modules import ConditionalRandomField
             self.crf = ConditionalRandomField(num_classes)
 
-    def forward(self, x, x_len, x_len_opi, x_mask, x_tag=None, x_tag_opi=None, testing=False):
-        # print(x.shape)
+    def forward(self, x, x_len,x_len_opi, x_mask, x_tag=None, x_tag_opi=None, testing=False):
 
-        a = x.unsqueeze(2).float()
-        # print(a.shape)
-        atten_a = torch.bmm(a, a.transpose(1, 2))
-        # print(atten_a.shape)
-        atten_a = np.float64(atten_a.cpu() > 0)
-        atten_a = torch.Tensor(atten_a).cpu()
-        # print(atten_a)
+        a=x.unsqueeze(2).float()
+        atten_a=torch.bmm(a,a.transpose(1,2))
+        atten_a=np.float64(atten_a.cpu() > 0)
+        atten_a=torch.Tensor(atten_a).cpu().type(torch.FloatTensor)
+        atten_a=atten_a.cpu().numpy()
 
-        atten_a = atten_a.cpu().numpy()
+        #print(atten_a.shape[0])
 
-        print(atten_a.shape[0])
+        for i in (0,atten_a.shape[0]-1):
+            atten_a[i]=atten_a[i]-np.diag(np.diag(atten_a[i]))
+        atten_a=np.where(atten_a > 0, atten_a, -999999999)
+        atten_a=torch.Tensor(atten_a).cpu().type(torch.FloatTensor)
 
-        for i in range(0,atten_a.shape[0]):
-
-            atten_a[i] = atten_a[i] - np.diag(np.diag(atten_a[i]))
-
-        atten_a = np.where(atten_a > 0, atten_a, -999999999)
-        atten_a = torch.Tensor(atten_a).cpu().type(torch.FloatTensor)
 
 
         x_emb = torch.cat((self.gen_embedding(x), self.domain_embedding(x)), dim=2)
@@ -117,7 +111,7 @@ class Model(torch.nn.Module):
         op_conv = op_conv.transpose(1, 2)  # [128, 83, 256]
 
         x_logit_opi = self._linear_ae(op_conv)
-        ''''
+        
         atten = F.relu(self.atten(op_conv))  # [128, 83, 256]
         atten = torch.bmm(as_conv, atten.transpose(1, 2))# [128, 83, 256]
 
@@ -126,8 +120,7 @@ class Model(torch.nn.Module):
         atten_weight = F.softmax(F.relu(atten), dim=1).cuda()
         atten_conv = torch.bmm(atten_weight, op_conv).transpose(1, 2)  # [128, 256, 83]
         ans_conv = torch.cat((as_conv, atten_conv.transpose(1, 2)), dim=2)  # [128, 83, 512]
-        '''
-        ans_conv = torch.cat((as_conv, op_conv), dim=2)
+        
         x_logit = self.linear_ae(ans_conv)
 
         if testing:
@@ -279,19 +272,10 @@ def test(model,test_X, raw_X, domain, command, template, batch_size=128, crf=Fal
         batch_test_X_len=batch_test_X_len[batch_idx]
         batch_test_X_mask=(test_X[offset:offset+batch_size]!=0)[batch_idx].astype(np.uint8)
         batch_test_X=test_X[offset:offset+batch_size][batch_idx]
-        #print("*****test:%d", offset)
-        #print(test_X[offset])
-        #print("*****:%d", offset)
-        #print(batch_test_X[offset])
         batch_test_X_mask=torch.autograd.Variable(torch.from_numpy(batch_test_X_mask).long().cuda() )
         batch_test_X = torch.autograd.Variable(torch.from_numpy(batch_test_X).long().cuda() )
-        #print("*****:%d",offset)
-        #print(batch_test_X[offset])
-        #batch_pred_y, batch_atten_weight = model(batch_test_X, batch_test_X_len, batch_test_X_len, batch_test_X_mask,testing=True)
         batch_pred_y= model(batch_test_X, batch_test_X_len, batch_test_X_len, batch_test_X_mask,
                                                  testing=True)
-        #print("batch_pred_y维度:", type(batch_pred_y))
-        #print("batch_atten_weight维度:", batch_atten_weight[1].shape)
         r_idx=batch_idx.argsort()
         if crf:
             batch_pred_y=[batch_pred_y[idx] for idx in r_idx]
@@ -300,34 +284,15 @@ def test(model,test_X, raw_X, domain, command, template, batch_size=128, crf=Fal
                     pred_y[offset+ix,jx]=batch_pred_y[ix][jx]
         else:
             batch_pred_y=batch_pred_y.data.cpu().numpy().argmax(axis=2)[r_idx]
-            #atten_weight[offset:offset + batch_size,:batch_atten_weight.shape[1],:batch_atten_weight.shape[2]] = batch_atten_weight.data.cpu().numpy()[r_idx]
             pred_y[offset:offset+batch_size,:batch_pred_y.shape[1]]=batch_pred_y
-            #print("*****:%d",offset)
-            #print(atten_weight[offset])
 
     model.train()
-    '''
-    for i in range(0,20):
-        #print("test:",test_X[i])
-        print("test %d:" % (i), file=of)
-        print(test_X[i], file=of)
-        #print("pres:", pred_y[i])
-        print("pres %d:" % (i), file=of)
-        print(pred_y[i], file=of)
-        #print("atten:",atten_weight[i])
-        print("atten %d:" % (i), file=of)
-        print(atten_weight[i], file=of)
-    '''
-    print("*****************")
-    #np.savez('attention.npz', test_X=test_X, pred_y=pred_y, atten=atten_weight)
-    print("+++++++++++++++++")
+   
     assert len(pred_y)==len(test_X)
 
     np.savez(domain+'_pred.npz', test_X=test_X, pred_y=pred_y)
-    
     command=command.split()
 
-    #print(command)
     if domain=='restaurant':
         label_rest_xml(template, command[6], raw_X, pred_y)
         acc=check_output(command ).split()
